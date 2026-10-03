@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0b0c">
+<title>Live Wage Tracker</title>
+<style>
+:root{--bg:#0b0b0c;--card:#17171a;--card2:#202024;--text:#f6f6f7;--muted:#a7a7ad;--accent:#0a84ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--border:#2d2d33}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;min-height:100vh}
+.wrap{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 28px)}
+.hero{text-align:center;padding:18px 10px 10px}
+.kicker{font-size:13px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.money{font-size:56px;line-height:1;font-weight:800;letter-spacing:-.04em;margin:10px 0 6px;font-variant-numeric:tabular-nums}
+.takehome{font-size:20px;color:var(--green);font-weight:700;font-variant-numeric:tabular-nums}
+.sub{color:var(--muted);font-size:14px;margin-top:6px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px}
+.card h3{margin:0 0 10px;font-size:14px;color:var(--muted);font-weight:600}
+.value{font-size:24px;font-weight:750;font-variant-numeric:tabular-nums}
+.row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.row:last-child{border-bottom:0}
+.label{font-size:14px;color:var(--muted)}
+.val{font-weight:700;font-variant-numeric:tabular-nums}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+button{appearance:none;border:0;border-radius:16px;padding:15px 16px;font-size:17px;font-weight:750;color:white;background:var(--accent);min-height:52px}
+button.secondary{background:var(--card2)}
+button.break{background:var(--orange);color:#111}
+button.danger{background:var(--red)}
+button:disabled{opacity:.45}
+.section-title{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:22px 2px 9px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px}
+.field input{width:100%;background:transparent;border:0;color:var(--text);font-size:18px;font-weight:650;outline:none}
+.field.wide{grid-column:1/-1}
+.note{font-size:12px;line-height:1.45;color:var(--muted);margin:8px 2px}
+.status{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);padding:8px 11px;border-radius:999px;font-size:13px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.running{background:var(--green)} .dot.breaking{background:var(--orange)}
+@media(max-width:380px){.money{font-size:48px}.form,.grid,.controls{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="status"><span id="dot" class="dot"></span><span id="statusText">Ready</span></div>
+    <div class="kicker" style="margin-top:18px">Gross earnings</div>
+    <div id="gross" class="money">$0.00</div>
+    <div id="takehome" class="takehome">Est. take-home $0.00</div>
+    <div id="clock" class="sub">00:00:00 paid time</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h3>Current rate</h3><div id="currentRate" class="value">$80.00/hr</div></div>
+    <div class="card"><h3>Total break</h3><div id="breakTotal" class="value">00:00</div></div>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn">Start Shift</button>
+    <button id="breakBtn" class="break" disabled>Start Break</button>
+    <button id="pauseBtn" class="secondary" disabled>Pause</button>
+    <button id="resetBtn" class="danger">Reset</button>
+  </div>
+
+  <div class="section-title">Shift setup</div>
+  <div class="form">
+    <div class="field"><label>Base rate ($/hr)</label><input id="baseRate" type="number" inputmode="decimal" min="0" step="0.01" value="80"></div>
+    <div class="field"><label>Shift start time</label><input id="startTime" type="time" value="06:00"></div>
+    <div class="field"><label>1.5× starts after</label><input id="ot1Hours" type="number" inputmode="decimal" min="0" step="0.25" value="8"></div>
+    <div class="field"><label>2× starts after</label><input id="ot2Hours" type="number" inputmode="decimal" min="0" step="0.25" value="12"></div>
+    <div class="field"><label>Manual elapsed hours</label><input id="manualHours" type="number" inputmode="decimal" min="0" step="0.25" value="0"></div>
+    <div class="field"><label>Manual break minutes</label><input id="manualBreak" type="number" inputmode="numeric" min="0" step="1" value="0"></div>
+    <div class="field wide"><button id="applyManual" class="secondary" type="button">Apply Manual Time / Break</button></div>
+  </div>
+
+  <div class="section-title">Earnings breakdown</div>
+  <div class="card">
+    <div class="row"><span class="label">Regular</span><span id="regPay" class="val">$0.00</span></div>
+    <div class="row"><span class="label">Time-and-a-half</span><span id="otPay" class="val">$0.00</span></div>
+    <div class="row"><span class="label">Double time</span><span id="dtPay" class="val">$0.00</span></div>
+  </div>
+
+  <div class="section-title">Estimated deductions</div>
+  <div class="form">
+    <div class="field"><label>Federal income tax %</label><input id="fedPct" type="number" inputmode="decimal" step="0.1" min="0" max="60" value="12"></div>
+    <div class="field"><label>California income tax %</label><input id="caPct" type="number" inputmode="decimal" step="0.1" min="0" max="20" value="4"></div>
+    <div class="field"><label>Social Security %</label><input id="ssPct" type="number" inputmode="decimal" step="0.01" min="0" max="20" value="6.2"></div>
+    <div class="field"><label>Medicare %</label><input id="medPct" type="number" inputmode="decimal" step="0.01" min="0" max="20" value="1.45"></div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <div class="row"><span class="label">Estimated deductions</span><span id="deduct" class="val">$0.00</span></div>
+    <div class="row"><span class="label">Estimated take-home</span><span id="takehome2" class="val">$0.00</span></div>
+  </div>
+  <div class="note">Tax numbers are only estimates. Actual withholding depends on your W‑4/DE‑4, filing status, deductions, year-to-date income, and payroll setup.</div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let running=false, onBreak=false, paused=false;
+  let shiftStartMs=null, pauseStartMs=null, breakStartMs=null;
+  let pausedAccumMs=0, breakAccumMs=0;
+  let manualPaidMs=0, interval=null;
+
+  const num=(id,def=0)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:def}
+  const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v||0);
+  const hhmmss=ms=>{
+    ms=Math.max(0,ms); const s=Math.floor(ms/1000);
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+    return [h,m,sec].map(x=>String(x).padStart(2,'0')).join(':');
+  };
+  const hhmm=ms=>{
+    ms=Math.max(0,ms); const s=Math.floor(ms/1000);
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+    return [h,m].map(x=>String(x).padStart(2,'0')).join(':');
+  };
+
+  function parsedStartTimeToday(){
+    const [h,m]=$('startTime').value.split(':').map(Number);
+    const d=new Date(); d.setHours(h||0,m||0,0,0);
+    if(d.getTime()>Date.now()) d.setDate(d.getDate()-1);
+    return d.getTime();
+  }
+
+  function paidMsNow(){
+    if(!running) return manualPaidMs;
+    let now=Date.now();
+    let grossElapsed=now-shiftStartMs;
+    let paused=pausedAccumMs + (paused && pauseStartMs ? now-pauseStartMs : 0);
+    let breaks=breakAccumMs + (onBreak && breakStartMs ? now-breakStartMs : 0);
+    return Math.max(0,grossElapsed-paused-breaks);
+  }
+
+  function calc(){
+    const hours=paidMsNow()/3600000;
+    const rate=Math.max(0,num('baseRate',80));
+    const ot1=Math.max(0,num('ot1Hours',8));
+    const ot2=Math.max(ot1,num('ot2Hours',12));
+    const regH=Math.min(hours,ot1);
+    const otH=Math.max(0,Math.min(hours,ot2)-ot1);
+    const dtH=Math.max(0,hours-ot2);
+    const reg=regH*rate, ot=otH*rate*1.5, dt=dtH*rate*2;
+    const gross=reg+ot+dt;
+    let current=rate;
+    if(hours>=ot2) current=rate*2; else if(hours>=ot1) current=rate*1.5;
+    const taxPct=Math.max(0,num('fedPct')+num('caPct')+num('ssPct')+num('medPct'))/100;
+    const deductions=gross*taxPct, take=Math.max(0,gross-deductions);
+    $('gross').textContent=money(gross);
+    $('takehome').textContent='Est. take-home '+money(take);
+    $('takehome2').textContent=money(take);
+    $('deduct').textContent=money(deductions);
+    $('clock').textContent=hhmmss(paidMsNow())+' paid time';
+    $('breakTotal').textContent=hhmm(breakAccumMs + (onBreak&&breakStartMs?Date.now()-breakStartMs:0) + Math.max(0,num('manualBreak')*60000));
+    $('currentRate').textContent=money(current)+'/hr';
+    $('regPay').textContent=money(reg); $('otPay').textContent=money(ot); $('dtPay').textContent=money(dt);
+  }
+
+  function setStatus(){
+    const dot=$('dot'), t=$('statusText');
+    dot.className='dot';
+    if(onBreak){dot.classList.add('breaking');t.textContent='On break'}
+    else if(running&&!paused){dot.classList.add('running');t.textContent='Working'}
+    else if(paused){t.textContent='Paused'} else {t.textContent='Ready'}
+    $('startBtn').textContent=running?'Shift Running':'Start Shift';
+    $('startBtn').disabled=running;
+    $('breakBtn').disabled=!running||paused;
+    $('breakBtn').textContent=onBreak?'Resume Work':'Start Break';
+    $('pauseBtn').disabled=!running||onBreak;
+    $('pauseBtn').textContent=paused?'Resume':'Pause';
+  }
+
+  function startShift(){
+    shiftStartMs=parsedStartTimeToday();
+    pausedAccumMs=0;breakAccumMs=0;manualPaidMs=0;
+    running=true;paused=false;onBreak=false;
+    if(interval) clearInterval(interval);
+    interval=setInterval(calc,250);
+    setStatus();calc();
+  }
+
+  $('startBtn').addEventListener('click',startShift);
+
+  $('breakBtn').addEventListener('click',()=>{
+    if(!running||paused)return;
+    if(!onBreak){onBreak=true;breakStartMs=Date.now();}
+    else{breakAccumMs+=Date.now()-breakStartMs;breakStartMs=null;onBreak=false;}
+    setStatus();calc();
+  });
+
+  $('pauseBtn').addEventListener('click',()=>{
+    if(!running||onBreak)return;
+    if(!paused){paused=true;pauseStartMs=Date.now();}
+    else{pausedAccumMs+=Date.now()-pauseStartMs;pauseStartMs=null;paused=false;}
+    setStatus();calc();
+  });
+
+  $('applyManual').addEventListener('click',()=>{
+    running=false;paused=false;onBreak=false;
+    if(interval) clearInterval(interval);
+    const h=Math.max(0,num('manualHours',0));
+    manualPaidMs=h*3600000;
+    breakAccumMs=Math.max(0,num('manualBreak',0))*60000;
+    setStatus();calc();
+  });
+
+  $('resetBtn').addEventListener('click',()=>{
+    running=false;paused=false;onBreak=false;shiftStartMs=null;pauseStartMs=null;breakStartMs=null;
+    pausedAccumMs=0;breakAccumMs=0;manualPaidMs=0;
+    if(interval) clearInterval(interval);
+    $('manualHours').value='0';$('manualBreak').value='0';
+    setStatus();calc();
+  });
+
+  ['baseRate','ot1Hours','ot2Hours','fedPct','caPct','ssPct','medPct','manualBreak'].forEach(id=>$(id).addEventListener('input',calc));
+  setStatus();calc();
+})();
+</script>
+</body>
+</html>
