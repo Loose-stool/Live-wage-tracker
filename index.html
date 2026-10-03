@@ -80,6 +80,20 @@ button:disabled{opacity:.45}
 .log-actions button{min-height:38px;padding:8px 11px;font-size:13px;border-radius:10px}
 .empty{color:var(--muted);text-align:center;padding:24px 10px}
 @media(max-width:460px){.money{font-size:48px}.grid3{grid-template-columns:1fr}.log-stats{grid-template-columns:1fr 1fr}.form,.grid,.controls{grid-template-columns:1fr}}
+
+.receipt-tools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.receipt-status{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4}
+.receipt-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.receipt-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.receipt-thumb{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--card2)}
+.receipt-file{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;background:var(--card2);color:var(--muted);font-weight:750}
+.receipt-meta{padding:10px}
+.receipt-meta .receipt-amt{font-size:18px;font-weight:800}
+.receipt-meta .receipt-small{font-size:12px;color:var(--muted);margin-top:3px}
+.receipt-meta .receipt-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.receipt-meta .receipt-links a{color:var(--accent);font-size:12px;font-weight:750;text-decoration:none}
+@media(max-width:460px){.receipt-tools,.receipt-gallery{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -350,13 +364,26 @@ button:disabled{opacity:.45}
       <div class="field" style="margin-top:10px">
         <label>Receipt (photo or PDF)</label>
         <input id="reimbursementReceipt" type="file" accept="image/*,application/pdf">
+        <div class="receipt-tools">
+          <button id="scanReceiptBtn" class="secondary" type="button">Scan Receipt Total</button>
+          <button id="clearReceiptBtn" class="secondary" type="button">Clear Receipt</button>
+        </div>
+        <div id="receiptScanStatus" class="receipt-status">Choose a receipt photo, then tap Scan Receipt Total. The detected amount will be filled in for you to approve or edit.</div>
       </div>
       <button id="addReimbursementBtn" style="width:100%;margin-top:10px" type="button">Add Reimbursement</button>
     </div>
 
     <div class="section-title">Reimbursement history</div>
     <div id="reimbursementsList" class="log-list"></div>
-    <div class="note">Receipt photos are compressed before being stored. Very large PDFs may be rejected to protect browser storage.</div>
+
+    <div class="section-title">Receipt gallery</div>
+    <div class="receipt-tools">
+      <button id="exportReceiptsBtn" type="button">Download Receipt Package</button>
+      <button id="downloadReimbursementsCsvBtn" class="secondary" type="button">Download CSV</button>
+    </div>
+    <div id="receiptGallery" class="receipt-gallery" style="margin-top:10px"></div>
+
+    <div class="note">Receipt photos are compressed before being stored. Auto-scan works best on clear receipt photos. PDFs can still be stored and exported, but automatic total detection is currently for images.</div>
   </section>
 </div>
 
@@ -787,6 +814,177 @@ button:disabled{opacity:.45}
     if(isReimbursement) switchPage('reimbursements');
   }
 
+
+  async function scanReimbursementReceipt(){
+    const input=$('reimbursementReceipt');
+    const file=input && input.files && input.files[0];
+    const status=$('receiptScanStatus');
+    if(!file){
+      status.textContent='Choose a receipt photo first.';
+      return;
+    }
+    if(!file.type.startsWith('image/')){
+      status.textContent='Automatic scanning currently works with receipt photos. PDFs can still be saved and exported.';
+      return;
+    }
+
+    status.textContent='Scanning receipt…';
+    $('scanReceiptBtn').disabled=true;
+
+    try{
+      if(!window.Tesseract){
+        status.textContent='Loading receipt scanner…';
+        const s=document.createElement('script');
+        s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+        document.head.appendChild(s);
+        await new Promise((resolve,reject)=>{
+          s.onload=resolve;
+          s.onerror=()=>reject(new Error('Could not load receipt scanner.'));
+        });
+      }
+
+      status.textContent='Reading receipt text…';
+      const result=await window.Tesseract.recognize(file,'eng',{
+        logger:m=>{
+          if(m && m.status==='recognizing text' && typeof m.progress==='number'){
+            status.textContent='Reading receipt… '+Math.round(m.progress*100)+'%';
+          }
+        }
+      });
+
+      const text=(result && result.data && result.data.text)||'';
+      const amount=findLikelyReceiptTotal(text);
+      if(amount!==null){
+        $('reimbursementAmount').value=amount.toFixed(2);
+        status.textContent='Detected total: '+money(amount)+'. Review or edit the amount before adding the reimbursement.';
+      }else{
+        status.textContent='I could not confidently find the total. Enter the amount manually.';
+      }
+    }catch(e){
+      status.textContent='Receipt scan failed. You can still enter the amount manually.';
+    }finally{
+      $('scanReceiptBtn').disabled=false;
+    }
+  }
+
+  function findLikelyReceiptTotal(text){
+    const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const scored=[];
+
+    const parseMoney=line=>{
+      const matches=line.match(/(?:\$?\s*)(\d{1,6}(?:,\d{3})*(?:\.\d{2}))/g);
+      if(!matches) return [];
+      return matches.map(m=>{
+        const n=parseFloat(m.replace(/[^0-9.]/g,''));
+        return Number.isFinite(n)?n:null;
+      }).filter(n=>n!==null && n>0 && n<100000);
+    };
+
+    lines.forEach((line,i)=>{
+      const low=line.toLowerCase();
+      const vals=parseMoney(line);
+      vals.forEach(v=>{
+        let score=0;
+        if(/\b(grand total|amount due|balance due|total due|total)\b/.test(low)) score+=10;
+        if(/\b(subtotal|sub total)\b/.test(low)) score-=4;
+        if(/\b(tax|tip|change|cash|tender)\b/.test(low)) score-=3;
+        if(i>lines.length*0.55) score+=2;
+        scored.push({v,score,i});
+      });
+    });
+
+    if(scored.length===0) return null;
+    scored.sort((a,b)=>b.score-a.score || b.v-a.v);
+    if(scored[0].score>0) return scored[0].v;
+
+    const all=scored.map(x=>x.v);
+    return Math.max(...all);
+  }
+
+  function clearReimbursementReceipt(){
+    $('reimbursementReceipt').value='';
+    $('receiptScanStatus').textContent='Choose a receipt photo, then tap Scan Receipt Total. The detected amount will be filled in for you to approve or edit.';
+  }
+
+  function dataUrlToUint8Array(dataUrl){
+    const base64=dataUrl.split(',')[1]||'';
+    const bin=atob(base64);
+    const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function safeFilename(name){
+    return (name||'receipt').replace(/[^a-z0-9._-]+/gi,'_').replace(/^_+|_+$/g,'') || 'receipt';
+  }
+
+  function reimbursementsCsv(entries){
+    const rows=[['Date','Amount','Category','Client / Job','Note','Receipt File']];
+    entries.forEach(e=>{
+      rows.push([
+        e.date||'',
+        Number(e.amount||0).toFixed(2),
+        e.category||'',
+        e.source||'',
+        e.note||'',
+        e.receipt && e.receipt.name ? e.receipt.name : ''
+      ]);
+    });
+    return rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  }
+
+  function downloadBlob(blob,filename){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+
+  async function downloadReimbursementsCsv(){
+    const entries=loadSimpleStore(REIMBURSEMENTS_KEY);
+    const csv=reimbursementsCsv(entries);
+    downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),'wage-against-the-machine-reimbursements.csv');
+  }
+
+  async function exportReceiptPackage(){
+    const entries=loadSimpleStore(REIMBURSEMENTS_KEY);
+    if(entries.length===0){
+      alert('No reimbursements to export yet.');
+      return;
+    }
+
+    const btn=$('exportReceiptsBtn');
+    btn.disabled=true;
+    const old=btn.textContent;
+    btn.textContent='Building package…';
+
+    try{
+      const {default:JSZip}=await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+      const zip=new JSZip();
+      zip.file('reimbursements.csv',reimbursementsCsv(entries));
+
+      const folder=zip.folder('receipts');
+      entries.forEach((e,index)=>{
+        if(!e.receipt || !e.receipt.data) return;
+        const ext=(e.receipt.type==='application/pdf')?'pdf':'jpg';
+        const base=(e.date||'undated')+'_'+String(index+1).padStart(2,'0')+'_'+safeFilename(e.source||e.category||'receipt');
+        folder.file(base+'.'+ext,dataUrlToUint8Array(e.receipt.data));
+      });
+
+      const blob=await zip.generateAsync({type:'blob'});
+      downloadBlob(blob,'wage-against-the-machine-receipts.zip');
+    }catch(e){
+      alert('Could not build the receipt package. Try again while connected to the internet.');
+    }finally{
+      btn.disabled=false;
+      btn.textContent=old;
+    }
+  }
+
   async function addReimbursement(){
     const date=$('reimbursementDate').value;
     const amount=Math.max(0,num('reimbursementAmount',0));
@@ -814,6 +1012,7 @@ button:disabled{opacity:.45}
     $('reimbursementSource').value='';
     $('reimbursementNote').value='';
     $('reimbursementReceipt').value='';
+    $('receiptScanStatus').textContent='Choose a receipt photo, then tap Scan Receipt Total. The detected amount will be filled in for you to approve or edit.';
     renderReimbursements();
   }
 
@@ -862,13 +1061,17 @@ button:disabled{opacity:.45}
   function renderReimbursements(){
     const entries=loadSimpleStore(REIMBURSEMENTS_KEY).sort((a,b)=>a.date.localeCompare(b.date));
     const list=$('reimbursementsList');
+    const gallery=$('receiptGallery');
     list.innerHTML='';
+    gallery.innerHTML='';
+
     const total=entries.reduce((s,e)=>s+(Number(e.amount)||0),0);
     $('reimbursementsTotal').textContent=money(total);
     $('reimbursementsCount').textContent=String(entries.length);
 
     if(entries.length===0){
       list.innerHTML='<div class="empty">No reimbursements logged yet.</div>';
+      gallery.innerHTML='<div class="empty">No receipt photos saved yet.</div>';
       return;
     }
 
@@ -891,7 +1094,31 @@ button:disabled{opacity:.45}
       `;
       item.querySelector('button').addEventListener('click',()=>deleteStoredEntry(REIMBURSEMENTS_KEY,e.id));
       list.appendChild(item);
+
+      if(e.receipt && e.receipt.data){
+        const card=document.createElement('div');
+        card.className='receipt-card';
+        const isImage=(e.receipt.type||'').startsWith('image/');
+        card.innerHTML=`
+          ${isImage
+            ? `<img class="receipt-thumb" src="${e.receipt.data}" alt="Receipt for ${e.source||e.category||'reimbursement'}">`
+            : `<div class="receipt-file">PDF receipt</div>`}
+          <div class="receipt-meta">
+            <div class="receipt-amt">${money(e.amount)}</div>
+            <div class="receipt-small">${prettyDate(e.date)} · ${e.category||'Reimbursement'}</div>
+            <div class="receipt-links">
+              <a href="${e.receipt.data}" target="_blank" rel="noopener">Open</a>
+              <a href="${e.receipt.data}" download="${safeFilename(e.receipt.name||'receipt')}">Download</a>
+            </div>
+          </div>
+        `;
+        gallery.appendChild(card);
+      }
     });
+
+    if(!gallery.children.length){
+      gallery.innerHTML='<div class="empty">No receipt photos saved yet.</div>';
+    }
   }
 
   function renderLog(){
@@ -997,6 +1224,10 @@ button:disabled{opacity:.45}
   $('archiveWeekBtn').addEventListener('click',archiveCurrentWeek);
   $('addPaymentBtn').addEventListener('click',addIncomingPayment);
   $('addReimbursementBtn').addEventListener('click',addReimbursement);
+  $('scanReceiptBtn').addEventListener('click',scanReimbursementReceipt);
+  $('clearReceiptBtn').addEventListener('click',clearReimbursementReceipt);
+  $('exportReceiptsBtn').addEventListener('click',exportReceiptPackage);
+  $('downloadReimbursementsCsvBtn').addEventListener('click',downloadReimbursementsCsv);
 
   const today=new Date();
   const todayIso=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
