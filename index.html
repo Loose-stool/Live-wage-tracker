@@ -16,7 +16,8 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,B
 .kicker{font-size:13px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
 .money{font-size:56px;line-height:1;font-weight:800;letter-spacing:-.04em;margin:10px 0 6px;font-variant-numeric:tabular-nums}
 .takehome{font-size:20px;color:var(--green);font-weight:700;font-variant-numeric:tabular-nums}
-.sub{color:var(--muted);font-size:14px;margin-top:6px}
+.timer{font-size:26px;font-weight:800;margin-top:10px;font-variant-numeric:tabular-nums}
+.sub{color:var(--muted);font-size:14px;margin-top:4px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px}
 .card h3{margin:0 0 10px;font-size:14px;color:var(--muted);font-weight:600}
@@ -35,8 +36,11 @@ button:disabled{opacity:.45}
 .form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px}
 .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px}
-.field input{width:100%;background:transparent;border:0;color:var(--text);font-size:18px;font-weight:650;outline:none}
+.field input{width:100%;background:transparent;border:0;color:var(--text);font-size:18px;font-weight:650;outline:none;min-width:0}
 .field.wide{grid-column:1/-1}
+.quick-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px;margin-top:10px}
+.quick-title{font-weight:750;margin-bottom:4px}
+.quick-copy{font-size:13px;color:var(--muted);line-height:1.4;margin-bottom:12px}
 .note{font-size:12px;line-height:1.45;color:var(--muted);margin:8px 2px}
 .status{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);padding:8px 11px;border-radius:999px;font-size:13px;color:var(--muted)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
@@ -51,7 +55,8 @@ button:disabled{opacity:.45}
     <div class="kicker" style="margin-top:18px">Gross earnings</div>
     <div id="gross" class="money">$0.00</div>
     <div id="takehome" class="takehome">Est. take-home $0.00</div>
-    <div id="clock" class="sub">00:00:00 paid time</div>
+    <div id="clock" class="timer">00:00:00</div>
+    <div class="sub">paid time — updates every second</div>
   </div>
 
   <div class="grid">
@@ -66,15 +71,31 @@ button:disabled{opacity:.45}
     <button id="resetBtn" class="danger">Reset</button>
   </div>
 
-  <div class="section-title">Shift setup</div>
+  <div class="section-title">Start / catch up</div>
+
+  <div class="quick-card">
+    <div class="quick-title">I know what time I started</div>
+    <div class="quick-copy">Example: you started at 6:00 AM but forgot to open the tracker. Set 6:00 AM and tap the button. It catches up instantly and keeps running.</div>
+    <div class="field"><label>Shift start time</label><input id="startTime" type="time" value="06:00"></div>
+    <button id="startFromClockBtn" style="width:100%;margin-top:10px">Start from this clock time</button>
+  </div>
+
+  <div class="quick-card">
+    <div class="quick-title">I know how long I’ve already worked</div>
+    <div class="quick-copy">Example: enter 4 hours and 57 minutes. The tracker starts at 04:57:00 and continues from there.</div>
+    <div class="form">
+      <div class="field"><label>Hours worked</label><input id="manualHours" type="number" inputmode="numeric" min="0" max="999" step="1" value="0"></div>
+      <div class="field"><label>Minutes worked</label><input id="manualMinutes" type="number" inputmode="numeric" min="0" max="59" step="1" value="0"></div>
+    </div>
+    <button id="startFromElapsedBtn" style="width:100%;margin-top:10px">Start from elapsed time</button>
+  </div>
+
+  <div class="section-title">Pay settings</div>
   <div class="form">
     <div class="field"><label>Base rate ($/hr)</label><input id="baseRate" type="number" inputmode="decimal" min="0" step="0.01" value="80"></div>
-    <div class="field"><label>Shift start time</label><input id="startTime" type="time" value="06:00"></div>
+    <div class="field"><label>Manual break minutes</label><input id="manualBreak" type="number" inputmode="numeric" min="0" step="1" value="0"></div>
     <div class="field"><label>1.5× starts after</label><input id="ot1Hours" type="number" inputmode="decimal" min="0" step="0.25" value="8"></div>
     <div class="field"><label>2× starts after</label><input id="ot2Hours" type="number" inputmode="decimal" min="0" step="0.25" value="12"></div>
-    <div class="field"><label>Manual elapsed hours</label><input id="manualHours" type="number" inputmode="decimal" min="0" step="0.25" value="0"></div>
-    <div class="field"><label>Manual break minutes</label><input id="manualBreak" type="number" inputmode="numeric" min="0" step="1" value="0"></div>
-    <div class="field wide"><button id="applyManual" class="secondary" type="button">Apply Manual Time / Break</button></div>
   </div>
 
   <div class="section-title">Earnings breakdown</div>
@@ -95,7 +116,7 @@ button:disabled{opacity:.45}
     <div class="row"><span class="label">Estimated deductions</span><span id="deduct" class="val">$0.00</span></div>
     <div class="row"><span class="label">Estimated take-home</span><span id="takehome2" class="val">$0.00</span></div>
   </div>
-  <div class="note">Tax numbers are only estimates. Actual withholding depends on your W‑4/DE‑4, filing status, deductions, year-to-date income, and payroll setup.</div>
+  <div class="note">Tax numbers are estimates only. Actual withholding depends on your W-4/DE-4, filing status, deductions, year-to-date income, and payroll setup.</div>
 </div>
 
 <script>
@@ -103,11 +124,11 @@ button:disabled{opacity:.45}
   const $ = id => document.getElementById(id);
   let running=false, onBreak=false, paused=false;
   let shiftStartMs=null, pauseStartMs=null, breakStartMs=null;
-  let pausedAccumMs=0, breakAccumMs=0;
-  let manualPaidMs=0, interval=null;
+  let pausedAccumMs=0, breakAccumMs=0, manualBreakMs=0;
+  let elapsedOffsetMs=0, interval=null;
 
-  const num=(id,def=0)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:def}
-  const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v||0);
+  const num=(id,def=0)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:def};
+  const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
   const hhmmss=ms=>{
     ms=Math.max(0,ms); const s=Math.floor(ms/1000);
     const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
@@ -120,23 +141,27 @@ button:disabled{opacity:.45}
   };
 
   function parsedStartTimeToday(){
-    const [h,m]=$('startTime').value.split(':').map(Number);
+    const raw=$('startTime').value || '00:00';
+    const [h,m]=raw.split(':').map(Number);
     const d=new Date(); d.setHours(h||0,m||0,0,0);
     if(d.getTime()>Date.now()) d.setDate(d.getDate()-1);
     return d.getTime();
   }
 
-  function paidMsNow(){
-    if(!running) return manualPaidMs;
-    let now=Date.now();
-    let grossElapsed=now-shiftStartMs;
-    let paused=pausedAccumMs + (paused && pauseStartMs ? now-pauseStartMs : 0);
-    let breaks=breakAccumMs + (onBreak && breakStartMs ? now-breakStartMs : 0);
-    return Math.max(0,grossElapsed-paused-breaks);
+  function activeElapsedMs(){
+    if(!running) return elapsedOffsetMs;
+    const now=Date.now();
+    let grossElapsed=0;
+    if(shiftStartMs!==null) grossElapsed=now-shiftStartMs;
+    else grossElapsed=elapsedOffsetMs;
+    const pausedNow=pausedAccumMs + (paused && pauseStartMs ? now-pauseStartMs : 0);
+    const breakNow=breakAccumMs + manualBreakMs + (onBreak && breakStartMs ? now-breakStartMs : 0);
+    return Math.max(0,grossElapsed-pausedNow-breakNow);
   }
 
   function calc(){
-    const hours=paidMsNow()/3600000;
+    const paidMs=activeElapsedMs();
+    const hours=paidMs/3600000;
     const rate=Math.max(0,num('baseRate',80));
     const ot1=Math.max(0,num('ot1Hours',8));
     const ot2=Math.max(ot1,num('ot2Hours',12));
@@ -149,22 +174,26 @@ button:disabled{opacity:.45}
     if(hours>=ot2) current=rate*2; else if(hours>=ot1) current=rate*1.5;
     const taxPct=Math.max(0,num('fedPct')+num('caPct')+num('ssPct')+num('medPct'))/100;
     const deductions=gross*taxPct, take=Math.max(0,gross-deductions);
+
     $('gross').textContent=money(gross);
     $('takehome').textContent='Est. take-home '+money(take);
     $('takehome2').textContent=money(take);
     $('deduct').textContent=money(deductions);
-    $('clock').textContent=hhmmss(paidMsNow())+' paid time';
-    $('breakTotal').textContent=hhmm(breakAccumMs + (onBreak&&breakStartMs?Date.now()-breakStartMs:0) + Math.max(0,num('manualBreak')*60000));
+    $('clock').textContent=hhmmss(paidMs);
+    $('breakTotal').textContent=hhmm(breakAccumMs + manualBreakMs + (onBreak&&breakStartMs?Date.now()-breakStartMs:0));
     $('currentRate').textContent=money(current)+'/hr';
-    $('regPay').textContent=money(reg); $('otPay').textContent=money(ot); $('dtPay').textContent=money(dt);
+    $('regPay').textContent=money(reg);
+    $('otPay').textContent=money(ot);
+    $('dtPay').textContent=money(dt);
   }
 
   function setStatus(){
     const dot=$('dot'), t=$('statusText');
     dot.className='dot';
-    if(onBreak){dot.classList.add('breaking');t.textContent='On break'}
-    else if(running&&!paused){dot.classList.add('running');t.textContent='Working'}
-    else if(paused){t.textContent='Paused'} else {t.textContent='Ready'}
+    if(onBreak){dot.classList.add('breaking');t.textContent='On break';}
+    else if(running&&!paused){dot.classList.add('running');t.textContent='Working';}
+    else if(paused){t.textContent='Paused';}
+    else{t.textContent='Ready';}
     $('startBtn').textContent=running?'Shift Running':'Start Shift';
     $('startBtn').disabled=running;
     $('breakBtn').disabled=!running||paused;
@@ -173,16 +202,43 @@ button:disabled{opacity:.45}
     $('pauseBtn').textContent=paused?'Resume':'Pause';
   }
 
-  function startShift(){
-    shiftStartMs=parsedStartTimeToday();
-    pausedAccumMs=0;breakAccumMs=0;manualPaidMs=0;
-    running=true;paused=false;onBreak=false;
+  function startTicker(){
     if(interval) clearInterval(interval);
-    interval=setInterval(calc,250);
-    setStatus();calc();
+    calc();
+    interval=setInterval(calc,1000);
   }
 
-  $('startBtn').addEventListener('click',startShift);
+  function resetState(){
+    running=false;onBreak=false;paused=false;
+    shiftStartMs=null;pauseStartMs=null;breakStartMs=null;
+    pausedAccumMs=0;breakAccumMs=0;manualBreakMs=0;elapsedOffsetMs=0;
+    if(interval){clearInterval(interval);interval=null;}
+  }
+
+  function startFromClock(){
+    resetState();
+    manualBreakMs=Math.max(0,num('manualBreak',0))*60000;
+    shiftStartMs=parsedStartTimeToday();
+    running=true;
+    startTicker(); setStatus(); calc();
+  }
+
+  function startFromElapsed(){
+    resetState();
+    const h=Math.max(0,Math.floor(num('manualHours',0)));
+    const m=Math.max(0,Math.min(59,Math.floor(num('manualMinutes',0))));
+    $('manualHours').value=String(h);
+    $('manualMinutes').value=String(m);
+    manualBreakMs=Math.max(0,num('manualBreak',0))*60000;
+    elapsedOffsetMs=((h*60)+m)*60000;
+    shiftStartMs=Date.now()-elapsedOffsetMs-manualBreakMs;
+    running=true;
+    startTicker(); setStatus(); calc();
+  }
+
+  $('startBtn').addEventListener('click',startFromClock);
+  $('startFromClockBtn').addEventListener('click',startFromClock);
+  $('startFromElapsedBtn').addEventListener('click',startFromElapsed);
 
   $('breakBtn').addEventListener('click',()=>{
     if(!running||paused)return;
@@ -198,24 +254,21 @@ button:disabled{opacity:.45}
     setStatus();calc();
   });
 
-  $('applyManual').addEventListener('click',()=>{
-    running=false;paused=false;onBreak=false;
-    if(interval) clearInterval(interval);
-    const h=Math.max(0,num('manualHours',0));
-    manualPaidMs=h*3600000;
-    breakAccumMs=Math.max(0,num('manualBreak',0))*60000;
-    setStatus();calc();
-  });
-
   $('resetBtn').addEventListener('click',()=>{
-    running=false;paused=false;onBreak=false;shiftStartMs=null;pauseStartMs=null;breakStartMs=null;
-    pausedAccumMs=0;breakAccumMs=0;manualPaidMs=0;
-    if(interval) clearInterval(interval);
-    $('manualHours').value='0';$('manualBreak').value='0';
+    resetState();
+    $('manualHours').value='0';
+    $('manualMinutes').value='0';
+    $('manualBreak').value='0';
     setStatus();calc();
   });
 
-  ['baseRate','ot1Hours','ot2Hours','fedPct','caPct','ssPct','medPct','manualBreak'].forEach(id=>$(id).addEventListener('input',calc));
+  ['baseRate','ot1Hours','ot2Hours','fedPct','caPct','ssPct','medPct','manualBreak'].forEach(id=>{
+    $(id).addEventListener('input',()=>{
+      if(!running) manualBreakMs=Math.max(0,num('manualBreak',0))*60000;
+      calc();
+    });
+  });
+
   setStatus();calc();
 })();
 </script>
