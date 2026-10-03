@@ -37,7 +37,6 @@ button:disabled{opacity:.45}
 .field{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px}
 .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px}
 .field input{width:100%;background:transparent;border:0;color:var(--text);font-size:18px;font-weight:650;outline:none;min-width:0}
-.field.wide{grid-column:1/-1}
 .quick-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px;margin-top:10px}
 .quick-title{font-weight:750;margin-bottom:4px}
 .quick-copy{font-size:13px;color:var(--muted);line-height:1.4;margin-bottom:12px}
@@ -45,6 +44,20 @@ button:disabled{opacity:.45}
 .status{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);padding:8px 11px;border-radius:999px;font-size:13px;color:var(--muted)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .dot.running{background:var(--green)} .dot.breaking{background:var(--orange)}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px}
+.toggle-copy{min-width:0}
+.toggle-title{font-weight:750}
+.toggle-sub{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.35}
+.switch{position:relative;width:52px;height:32px;flex:0 0 auto}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#3a3a3f;border-radius:999px;transition:.2s}
+.slider:before{content:"";position:absolute;width:26px;height:26px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked + .slider{background:var(--green)}
+.switch input:checked + .slider:before{transform:translateX(20px)}
+.segment{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.segment button{background:var(--card2);font-size:14px;min-height:44px;padding:10px}
+.segment button.active{background:var(--accent)}
+.hidden{display:none!important}
 @media(max-width:380px){.money{font-size:48px}.form,.grid,.controls{grid-template-columns:1fr}}
 </style>
 </head>
@@ -71,23 +84,37 @@ button:disabled{opacity:.45}
     <button id="resetBtn" class="danger">Reset</button>
   </div>
 
-  <div class="section-title">Start / catch up</div>
+  <div class="section-title">Shift start</div>
 
-  <div class="quick-card">
-    <div class="quick-title">I know what time I started</div>
-    <div class="quick-copy">Example: you started at 6:00 AM but forgot to open the tracker. Set 6:00 AM and tap the button. It catches up instantly and keeps running.</div>
-    <div class="field"><label>Shift start time</label><input id="startTime" type="time" value="06:00"></div>
-    <button id="startFromClockBtn" style="width:100%;margin-top:10px">Start from this clock time</button>
+  <div class="toggle-row">
+    <div class="toggle-copy">
+      <div class="toggle-title">I already started working</div>
+      <div class="toggle-sub">Leave this off to start from 00:00:00 right now.</div>
+    </div>
+    <label class="switch">
+      <input id="alreadyStartedToggle" type="checkbox">
+      <span class="slider"></span>
+    </label>
   </div>
 
-  <div class="quick-card">
-    <div class="quick-title">I know how long I’ve already worked</div>
-    <div class="quick-copy">Example: enter 4 hours and 57 minutes. The tracker starts at 04:57:00 and continues from there.</div>
-    <div class="form">
-      <div class="field"><label>Hours worked</label><input id="manualHours" type="number" inputmode="numeric" min="0" max="999" step="1" value="0"></div>
-      <div class="field"><label>Minutes worked</label><input id="manualMinutes" type="number" inputmode="numeric" min="0" max="59" step="1" value="0"></div>
+  <div id="catchupPanel" class="quick-card hidden">
+    <div class="quick-title">Catch up the timer</div>
+    <div class="quick-copy">Choose whether you know the clock time you started or the amount of time you have already worked.</div>
+    <div class="segment">
+      <button id="clockModeBtn" type="button" class="active">Started at a time</button>
+      <button id="elapsedModeBtn" type="button">Elapsed time</button>
     </div>
-    <button id="startFromElapsedBtn" style="width:100%;margin-top:10px">Start from elapsed time</button>
+
+    <div id="clockModePanel" style="margin-top:10px">
+      <div class="field"><label>Shift start time</label><input id="startTime" type="time" value="06:00"></div>
+    </div>
+
+    <div id="elapsedModePanel" class="hidden" style="margin-top:10px">
+      <div class="form">
+        <div class="field"><label>Hours worked</label><input id="manualHours" type="number" inputmode="numeric" min="0" max="999" step="1" value="0"></div>
+        <div class="field"><label>Minutes worked</label><input id="manualMinutes" type="number" inputmode="numeric" min="0" max="59" step="1" value="0"></div>
+      </div>
+    </div>
   </div>
 
   <div class="section-title">Pay settings</div>
@@ -105,18 +132,31 @@ button:disabled{opacity:.45}
     <div class="row"><span class="label">Double time</span><span id="dtPay" class="val">$0.00</span></div>
   </div>
 
-  <div class="section-title">Estimated deductions</div>
-  <div class="form">
-    <div class="field"><label>Federal income tax %</label><input id="fedPct" type="number" inputmode="decimal" step="0.1" min="0" max="60" value="12"></div>
-    <div class="field"><label>California income tax %</label><input id="caPct" type="number" inputmode="decimal" step="0.1" min="0" max="20" value="4"></div>
-    <div class="field"><label>Social Security %</label><input id="ssPct" type="number" inputmode="decimal" step="0.01" min="0" max="20" value="6.2"></div>
-    <div class="field"><label>Medicare %</label><input id="medPct" type="number" inputmode="decimal" step="0.01" min="0" max="20" value="1.45"></div>
+  <div class="section-title">Taxes & deductions</div>
+  <div class="toggle-row">
+    <div class="toggle-copy">
+      <div class="toggle-title">Account for taxes</div>
+      <div class="toggle-sub">Turn this off to track gross earnings only.</div>
+    </div>
+    <label class="switch">
+      <input id="taxToggle" type="checkbox" checked>
+      <span class="slider"></span>
+    </label>
   </div>
-  <div class="card" style="margin-top:10px">
-    <div class="row"><span class="label">Estimated deductions</span><span id="deduct" class="val">$0.00</span></div>
-    <div class="row"><span class="label">Estimated take-home</span><span id="takehome2" class="val">$0.00</span></div>
+
+  <div id="taxPanel" style="margin-top:10px">
+    <div class="form">
+      <div class="field"><label>Federal income tax %</label><input id="fedPct" type="number" inputmode="decimal" step="0.1" min="0" max="60" value="12"></div>
+      <div class="field"><label>California income tax %</label><input id="caPct" type="number" inputmode="decimal" step="0.1" min="0" max="20" value="4"></div>
+      <div class="field"><label>Social Security %</label><input id="ssPct" type="number" inputmode="decimal" step="0.01" min="0" max="20" value="6.2"></div>
+      <div class="field"><label>Medicare %</label><input id="medPct" type="number" inputmode="decimal" step="0.01" min="0" max="20" value="1.45"></div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <div class="row"><span class="label">Estimated deductions</span><span id="deduct" class="val">$0.00</span></div>
+      <div class="row"><span class="label">Estimated take-home</span><span id="takehome2" class="val">$0.00</span></div>
+    </div>
+    <div class="note">Tax numbers are estimates only. Actual withholding depends on your W-4/DE-4, filing status, deductions, year-to-date income, and payroll setup.</div>
   </div>
-  <div class="note">Tax numbers are estimates only. Actual withholding depends on your W-4/DE-4, filing status, deductions, year-to-date income, and payroll setup.</div>
 </div>
 
 <script>
@@ -125,7 +165,7 @@ button:disabled{opacity:.45}
   let running=false, onBreak=false, paused=false;
   let shiftStartMs=null, pauseStartMs=null, breakStartMs=null;
   let pausedAccumMs=0, breakAccumMs=0, manualBreakMs=0;
-  let elapsedOffsetMs=0, interval=null;
+  let elapsedOffsetMs=0, interval=null, catchupMode='clock';
 
   const num=(id,def=0)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:def};
   const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
@@ -151,9 +191,7 @@ button:disabled{opacity:.45}
   function activeElapsedMs(){
     if(!running) return elapsedOffsetMs;
     const now=Date.now();
-    let grossElapsed=0;
-    if(shiftStartMs!==null) grossElapsed=now-shiftStartMs;
-    else grossElapsed=elapsedOffsetMs;
+    const grossElapsed=shiftStartMs!==null ? now-shiftStartMs : elapsedOffsetMs;
     const pausedNow=pausedAccumMs + (paused && pauseStartMs ? now-pauseStartMs : 0);
     const breakNow=breakAccumMs + manualBreakMs + (onBreak && breakStartMs ? now-breakStartMs : 0);
     return Math.max(0,grossElapsed-pausedNow-breakNow);
@@ -172,19 +210,22 @@ button:disabled{opacity:.45}
     const gross=reg+ot+dt;
     let current=rate;
     if(hours>=ot2) current=rate*2; else if(hours>=ot1) current=rate*1.5;
-    const taxPct=Math.max(0,num('fedPct')+num('caPct')+num('ssPct')+num('medPct'))/100;
-    const deductions=gross*taxPct, take=Math.max(0,gross-deductions);
+
+    const taxesOn=$('taxToggle').checked;
+    const taxPct=taxesOn ? Math.max(0,num('fedPct')+num('caPct')+num('ssPct')+num('medPct'))/100 : 0;
+    const deductions=gross*taxPct;
+    const take=Math.max(0,gross-deductions);
 
     $('gross').textContent=money(gross);
-    $('takehome').textContent='Est. take-home '+money(take);
-    $('takehome2').textContent=money(take);
-    $('deduct').textContent=money(deductions);
+    $('takehome').textContent=taxesOn ? 'Est. take-home '+money(take) : 'Taxes off — gross only';
     $('clock').textContent=hhmmss(paidMs);
     $('breakTotal').textContent=hhmm(breakAccumMs + manualBreakMs + (onBreak&&breakStartMs?Date.now()-breakStartMs:0));
     $('currentRate').textContent=money(current)+'/hr';
     $('regPay').textContent=money(reg);
     $('otPay').textContent=money(ot);
     $('dtPay').textContent=money(dt);
+    $('deduct').textContent=money(deductions);
+    $('takehome2').textContent=money(take);
   }
 
   function setStatus(){
@@ -202,6 +243,14 @@ button:disabled{opacity:.45}
     $('pauseBtn').textContent=paused?'Resume':'Pause';
   }
 
+  function setCatchupMode(mode){
+    catchupMode=mode;
+    $('clockModeBtn').classList.toggle('active',mode==='clock');
+    $('elapsedModeBtn').classList.toggle('active',mode==='elapsed');
+    $('clockModePanel').classList.toggle('hidden',mode!=='clock');
+    $('elapsedModePanel').classList.toggle('hidden',mode!=='elapsed');
+  }
+
   function startTicker(){
     if(interval) clearInterval(interval);
     calc();
@@ -215,30 +264,42 @@ button:disabled{opacity:.45}
     if(interval){clearInterval(interval);interval=null;}
   }
 
-  function startFromClock(){
+  function startShift(){
     resetState();
     manualBreakMs=Math.max(0,num('manualBreak',0))*60000;
-    shiftStartMs=parsedStartTimeToday();
+
+    if(!$('alreadyStartedToggle').checked){
+      shiftStartMs=Date.now();
+    } else if(catchupMode==='clock'){
+      shiftStartMs=parsedStartTimeToday();
+    } else {
+      const h=Math.max(0,Math.floor(num('manualHours',0)));
+      const m=Math.max(0,Math.min(59,Math.floor(num('manualMinutes',0))));
+      $('manualHours').value=String(h);
+      $('manualMinutes').value=String(m);
+      elapsedOffsetMs=((h*60)+m)*60000;
+      shiftStartMs=Date.now()-elapsedOffsetMs-manualBreakMs;
+    }
+
     running=true;
-    startTicker(); setStatus(); calc();
+    startTicker();
+    setStatus();
+    calc();
   }
 
-  function startFromElapsed(){
-    resetState();
-    const h=Math.max(0,Math.floor(num('manualHours',0)));
-    const m=Math.max(0,Math.min(59,Math.floor(num('manualMinutes',0))));
-    $('manualHours').value=String(h);
-    $('manualMinutes').value=String(m);
-    manualBreakMs=Math.max(0,num('manualBreak',0))*60000;
-    elapsedOffsetMs=((h*60)+m)*60000;
-    shiftStartMs=Date.now()-elapsedOffsetMs-manualBreakMs;
-    running=true;
-    startTicker(); setStatus(); calc();
-  }
+  $('startBtn').addEventListener('click',startShift);
 
-  $('startBtn').addEventListener('click',startFromClock);
-  $('startFromClockBtn').addEventListener('click',startFromClock);
-  $('startFromElapsedBtn').addEventListener('click',startFromElapsed);
+  $('alreadyStartedToggle').addEventListener('change',()=>{
+    $('catchupPanel').classList.toggle('hidden',!$('alreadyStartedToggle').checked);
+  });
+
+  $('clockModeBtn').addEventListener('click',()=>setCatchupMode('clock'));
+  $('elapsedModeBtn').addEventListener('click',()=>setCatchupMode('elapsed'));
+
+  $('taxToggle').addEventListener('change',()=>{
+    $('taxPanel').classList.toggle('hidden',!$('taxToggle').checked);
+    calc();
+  });
 
   $('breakBtn').addEventListener('click',()=>{
     if(!running||paused)return;
@@ -269,7 +330,11 @@ button:disabled{opacity:.45}
     });
   });
 
-  setStatus();calc();
+  setCatchupMode('clock');
+  $('catchupPanel').classList.add('hidden');
+  $('taxPanel').classList.remove('hidden');
+  setStatus();
+  calc();
 })();
 </script>
 </body>
