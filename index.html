@@ -6,13 +6,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b0b0c">
-<title>Live Wage Tracker</title>
+<meta name="apple-mobile-web-app-title" content="Wage Against the Machine">
+<title>Wage Against the Machine</title>
 <style>
 :root{--bg:#0b0b0c;--card:#17171a;--card2:#202024;--text:#f6f6f7;--muted:#a7a7ad;--accent:#0a84ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--border:#2d2d33}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;min-height:100vh}
 .wrap{max-width:620px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 28px)}
-.topnav{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--card);border:1px solid var(--border);padding:6px;border-radius:16px;position:sticky;top:8px;z-index:20}
+.appname{text-align:center;font-size:24px;font-weight:850;letter-spacing:-.03em;margin:4px 0 12px}.topnav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--card);border:1px solid var(--border);padding:6px;border-radius:16px;position:sticky;top:8px;z-index:20}
 .topnav button{min-height:42px;padding:9px 12px;border-radius:11px;background:transparent;color:var(--muted);font-size:15px}
 .topnav button.active{background:var(--accent);color:#fff}
 .page{display:none}
@@ -84,9 +85,11 @@ button:disabled{opacity:.45}
 <body>
 <div class="wrap">
 
+  <div class="appname">Wage Against the Machine</div>
   <div class="topnav">
     <button id="todayTab" class="active" type="button">Live Shift</button>
     <button id="logTab" type="button">Work Log</button>
+    <button id="archiveTab" type="button">Year Archive</button>
   </div>
 
   <section id="todayPage" class="page active">
@@ -209,9 +212,33 @@ button:disabled{opacity:.45}
       <button id="addLogBtn" style="width:100%" type="button">Add Day</button>
     </div>
 
+    <div class="section-title">Archive pay week</div>
+    <div class="quick-card">
+      <div class="quick-title">Lock this week into your yearly total</div>
+      <div class="quick-copy">This archives every day currently in the Work Log as one pay week, then clears the Work Log for the next week.</div>
+      <button id="archiveWeekBtn" style="width:100%" type="button">Archive Current Week</button>
+    </div>
+
     <div class="section-title">Saved days</div>
     <div id="logList" class="log-list"></div>
     <div class="note">Saved work days stay on this iPhone/browser using local storage. Clearing Safari website data can remove them.</div>
+  </section>
+
+  <section id="archivePage" class="page">
+    <div class="section-title" style="margin-top:18px">Year-to-date totals</div>
+    <div class="grid3">
+      <div class="card"><h3>Archived gross</h3><div id="yearGross" class="big-value">$0.00</div></div>
+      <div class="card"><h3>Archived hours</h3><div id="yearHours" class="big-value">0.00</div></div>
+      <div class="card"><h3>OT premium</h3><div id="yearPremium" class="big-value">$0.00</div></div>
+    </div>
+    <div class="grid" style="margin-top:10px">
+      <div class="card"><h3>Weeks archived</h3><div id="yearWeeks" class="value">0</div></div>
+      <div class="card"><h3>Average / week</h3><div id="yearAvg" class="value">$0.00</div></div>
+    </div>
+
+    <div class="section-title">Archived weeks</div>
+    <div id="archiveList" class="log-list"></div>
+    <div class="note">Weekly archives are saved on this iPhone/browser. Clearing Safari website data can remove them.</div>
   </section>
 </div>
 
@@ -223,6 +250,7 @@ button:disabled{opacity:.45}
   let pausedAccumMs=0, breakAccumMs=0, manualBreakMs=0;
   let elapsedOffsetMs=0, interval=null, catchupMode='clock';
   const LOG_KEY='liveWageTrackerWorkLogV1';
+  const ARCHIVE_KEY='wageAgainstMachineArchiveV1';
 
   const num=(id,def=0)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:def};
   const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
@@ -355,11 +383,16 @@ button:disabled{opacity:.45}
 
   function switchPage(page){
     const today=page==='today';
+    const log=page==='log';
+    const archive=page==='archive';
     $('todayPage').classList.toggle('active',today);
-    $('logPage').classList.toggle('active',!today);
+    $('logPage').classList.toggle('active',log);
+    $('archivePage').classList.toggle('active',archive);
     $('todayTab').classList.toggle('active',today);
-    $('logTab').classList.toggle('active',!today);
-    if(!today) renderLog();
+    $('logTab').classList.toggle('active',log);
+    $('archiveTab').classList.toggle('active',archive);
+    if(log) renderLog();
+    if(archive) renderArchive();
   }
 
   function loadLog(){
@@ -423,6 +456,100 @@ button:disabled{opacity:.45}
     renderLog();
   }
 
+  function loadArchive(){
+    try{
+      const raw=localStorage.getItem(ARCHIVE_KEY);
+      const arr=raw?JSON.parse(raw):[];
+      return Array.isArray(arr)?arr:[];
+    }catch(e){return [];}
+  }
+
+  function saveArchive(entries){
+    try{localStorage.setItem(ARCHIVE_KEY,JSON.stringify(entries));}catch(e){}
+  }
+
+  function archiveCurrentWeek(){
+    const days=loadLog();
+    if(days.length===0){alert('Add at least one work day before archiving the week.');return;}
+
+    const rate=Math.max(0,num('baseRate',80));
+    const ot1=Math.max(0,num('ot1Hours',8));
+    const ot2=Math.max(ot1,num('ot2Hours',12));
+
+    let gross=0,hours=0,otHours=0,dtHours=0,premium=0;
+    days.forEach(e=>{
+      const b=payBreakdown(e.hours,rate,ot1,ot2);
+      gross+=b.gross; hours+=e.hours; otHours+=b.otH; dtHours+=b.dtH; premium+=b.premium;
+    });
+
+    const dates=days.map(d=>d.date).sort();
+    const week={
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      startDate:dates[0],
+      endDate:dates[dates.length-1],
+      gross,hours,otHours,dtHours,premium,
+      days:days.length,
+      archivedAt:new Date().toISOString()
+    };
+
+    const archive=loadArchive();
+    archive.push(week);
+    saveArchive(archive);
+    saveLog([]);
+    renderLog();
+    renderArchive();
+    switchPage('archive');
+  }
+
+  function deleteArchiveWeek(id){
+    const archive=loadArchive().filter(w=>w.id!==id);
+    saveArchive(archive);
+    renderArchive();
+  }
+
+  function renderArchive(){
+    const archive=loadArchive();
+    const list=$('archiveList');
+    list.innerHTML='';
+
+    let gross=0,hours=0,premium=0;
+    archive.forEach(w=>{gross+=w.gross||0;hours+=w.hours||0;premium+=w.premium||0;});
+
+    $('yearGross').textContent=money(gross);
+    $('yearHours').textContent=formatHours(hours);
+    $('yearPremium').textContent=money(premium);
+    $('yearWeeks').textContent=String(archive.length);
+    $('yearAvg').textContent=money(archive.length?gross/archive.length:0);
+
+    if(archive.length===0){
+      list.innerHTML='<div class="empty">No archived pay weeks yet.</div>';
+      return;
+    }
+
+    archive.slice().reverse().forEach(w=>{
+      const item=document.createElement('div');
+      item.className='log-item';
+      item.innerHTML=`
+        <div class="log-top">
+          <div>
+            <div class="log-date">${prettyDate(w.startDate)} – ${prettyDate(w.endDate)}</div>
+            <div class="log-time">${w.days} work day${w.days===1?'':'s'} archived</div>
+          </div>
+          <div class="log-pay">${money(w.gross)}</div>
+        </div>
+        <div class="log-stats">
+          <div class="statbox"><div class="slabel">Paid hours</div><div class="sval">${formatHours(w.hours)}</div></div>
+          <div class="statbox"><div class="slabel">1.5× hours</div><div class="sval">${formatHours(w.otHours)}</div></div>
+          <div class="statbox"><div class="slabel">2× hours</div><div class="sval">${formatHours(w.dtHours)}</div></div>
+          <div class="statbox"><div class="slabel">OT premium</div><div class="sval">${money(w.premium)}</div></div>
+        </div>
+        <div class="log-actions"><button type="button" class="danger">Delete archive</button></div>
+      `;
+      item.querySelector('button').addEventListener('click',()=>deleteArchiveWeek(w.id));
+      list.appendChild(item);
+    });
+  }
+
   function renderLog(){
     const entries=loadLog();
     const rate=Math.max(0,num('baseRate',80));
@@ -472,6 +599,7 @@ button:disabled{opacity:.45}
 
   $('todayTab').addEventListener('click',()=>switchPage('today'));
   $('logTab').addEventListener('click',()=>switchPage('log'));
+  $('archiveTab').addEventListener('click',()=>switchPage('archive'));
   $('startBtn').addEventListener('click',startShift);
 
   $('alreadyStartedToggle').addEventListener('change',()=>{
@@ -517,6 +645,7 @@ button:disabled{opacity:.45}
   });
 
   $('addLogBtn').addEventListener('click',addLogEntry);
+  $('archiveWeekBtn').addEventListener('click',archiveCurrentWeek);
 
   const today=new Date();
   $('logDate').value=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
@@ -527,6 +656,7 @@ button:disabled{opacity:.45}
   setStatus();
   calc();
   renderLog();
+  renderArchive();
 })();
 </script>
 </body>
