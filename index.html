@@ -13,8 +13,8 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;min-height:100vh}
 .wrap{max-width:620px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 28px)}
-.appname{text-align:center;font-size:24px;font-weight:850;letter-spacing:-.03em;margin:4px 0 12px}.topnav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--card);border:1px solid var(--border);padding:6px;border-radius:16px;position:sticky;top:8px;z-index:20}
-.topnav button{min-height:42px;padding:9px 12px;border-radius:11px;background:transparent;color:var(--muted);font-size:15px}
+.appname{text-align:center;font-size:24px;font-weight:850;letter-spacing:-.03em;margin:4px 0 12px}.topnav{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--card);border:1px solid var(--border);padding:6px;border-radius:16px;position:sticky;top:8px;z-index:20}
+.topnav button{min-height:42px;padding:9px 12px;border-radius:11px;background:transparent;color:var(--muted);font-size:14px;white-space:nowrap;flex:0 0 auto}
 .topnav button.active{background:var(--accent);color:#fff}
 .page{display:none}
 .page.active{display:block}
@@ -90,6 +90,8 @@ button:disabled{opacity:.45}
     <button id="todayTab" class="active" type="button">Live Shift</button>
     <button id="logTab" type="button">Work Log</button>
     <button id="archiveTab" type="button">Year Archive</button>
+    <button id="paymentsTab" type="button">Payments</button>
+    <button id="reimbursementsTab" type="button">Reimbursements</button>
   </div>
 
   <section id="todayPage" class="page active">
@@ -150,6 +152,29 @@ button:disabled{opacity:.45}
       <div class="field"><label>Manual break minutes</label><input id="manualBreak" type="number" inputmode="numeric" min="0" step="1" value="0"></div>
       <div class="field"><label>1.5× starts after</label><input id="ot1Hours" type="number" inputmode="decimal" min="0" step="0.25" value="8"></div>
       <div class="field"><label>2× starts after</label><input id="ot2Hours" type="number" inputmode="decimal" min="0" step="0.25" value="12"></div>
+    </div>
+
+    <div style="display:grid;gap:10px;margin-top:10px">
+      <div class="toggle-row">
+        <div class="toggle-copy">
+          <div class="toggle-title">1.5× overtime premium</div>
+          <div class="toggle-sub">Turn off for jobs that pay straight time after 8 hours.</div>
+        </div>
+        <label class="switch">
+          <input id="ot15Toggle" type="checkbox" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-copy">
+          <div class="toggle-title">2× double-time premium</div>
+          <div class="toggle-sub">Turn off for jobs that do not pay double time.</div>
+        </div>
+        <label class="switch">
+          <input id="ot2Toggle" type="checkbox" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
 
     <div class="section-title">Earnings breakdown</div>
@@ -240,6 +265,99 @@ button:disabled{opacity:.45}
     <div id="archiveList" class="log-list"></div>
     <div class="note">Weekly archives are saved on this iPhone/browser. Clearing Safari website data can remove them.</div>
   </section>
+
+  <section id="paymentsPage" class="page">
+    <div class="section-title" style="margin-top:18px">Payments</div>
+
+    <div class="grid">
+      <div class="card"><h3>Income received</h3><div id="paymentsTotal" class="big-value">$0.00</div></div>
+      <div class="card"><h3>Income payments</h3><div id="paymentsCount" class="big-value">0</div></div>
+    </div>
+
+    <div class="section-title">Log incoming payment</div>
+    <div class="quick-card">
+      <div class="form">
+        <div class="field"><label>Date</label><input id="paymentDate" type="date"></div>
+        <div class="field"><label>Amount</label><input id="paymentAmount" type="number" inputmode="decimal" min="0" step="0.01" value="0"></div>
+        <div class="field">
+          <label>Payment method</label>
+          <select id="paymentMethod" style="width:100%;background:transparent;border:0;color:var(--text);font-size:18px;font-weight:650;outline:none">
+            <option>Credit Card</option>
+            <option>Zelle</option>
+            <option>Venmo</option>
+            <option>Cash</option>
+            <option>Check</option>
+            <option>ACH / Bank Transfer</option>
+            <option>PayPal</option>
+            <option>Apple Cash</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field"><label>Client / source</label><input id="paymentSource" type="text" placeholder="Optional"></div>
+      </div>
+
+      <div class="toggle-row" style="margin-top:10px">
+        <div class="toggle-copy">
+          <div class="toggle-title">Is this a reimbursement?</div>
+          <div class="toggle-sub">Off = income. On = reimbursement and it will appear in the Reimbursements tab instead.</div>
+        </div>
+        <label class="switch">
+          <input id="paymentIsReimbursement" type="checkbox">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field" style="margin-top:10px"><label>Note</label><input id="paymentNote" type="text" placeholder="Optional"></div>
+      <div class="field" style="margin-top:10px">
+        <label>Receipt (photo or PDF)</label>
+        <input id="paymentReceipt" type="file" accept="image/*,application/pdf">
+      </div>
+      <button id="addPaymentBtn" style="width:100%;margin-top:10px" type="button">Add Payment</button>
+    </div>
+
+    <div class="section-title">Income history</div>
+    <div id="paymentsList" class="log-list"></div>
+    <div class="note">Reimbursements are kept separate from income so they do not inflate earned pay.</div>
+  </section>
+
+  <section id="reimbursementsPage" class="page">
+    <div class="section-title" style="margin-top:18px">Reimbursements</div>
+
+    <div class="grid">
+      <div class="card"><h3>Total reimbursed</h3><div id="reimbursementsTotal" class="big-value">$0.00</div></div>
+      <div class="card"><h3>Reimbursements</h3><div id="reimbursementsCount" class="big-value">0</div></div>
+    </div>
+
+    <div class="section-title">Add reimbursement directly</div>
+    <div class="quick-card">
+      <div class="form">
+        <div class="field"><label>Date</label><input id="reimbursementDate" type="date"></div>
+        <div class="field"><label>Amount</label><input id="reimbursementAmount" type="number" inputmode="decimal" min="0" step="0.01" value="0"></div>
+        <div class="field">
+          <label>Category</label>
+          <select id="reimbursementCategory" style="width:100%;background:transparent;border:0;color:var(--text);font-size:18px;font-weight:650;outline:none">
+            <option>Materials</option>
+            <option>Mileage</option>
+            <option>Parking / Tolls</option>
+            <option>Supplies</option>
+            <option>Meals</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field"><label>Client / job</label><input id="reimbursementSource" type="text" placeholder="Optional"></div>
+      </div>
+      <div class="field" style="margin-top:10px"><label>Note</label><input id="reimbursementNote" type="text" placeholder="Optional"></div>
+      <div class="field" style="margin-top:10px">
+        <label>Receipt (photo or PDF)</label>
+        <input id="reimbursementReceipt" type="file" accept="image/*,application/pdf">
+      </div>
+      <button id="addReimbursementBtn" style="width:100%;margin-top:10px" type="button">Add Reimbursement</button>
+    </div>
+
+    <div class="section-title">Reimbursement history</div>
+    <div id="reimbursementsList" class="log-list"></div>
+    <div class="note">Receipt photos are compressed before being stored. Very large PDFs may be rejected to protect browser storage.</div>
+  </section>
 </div>
 
 <script>
@@ -251,6 +369,8 @@ button:disabled{opacity:.45}
   let elapsedOffsetMs=0, interval=null, catchupMode='clock';
   const LOG_KEY='liveWageTrackerWorkLogV1';
   const ARCHIVE_KEY='wageAgainstMachineArchiveV1';
+  const PAYMENTS_KEY='wageAgainstMachinePaymentsV1';
+  const REIMBURSEMENTS_KEY='wageAgainstMachineReimbursementsV1';
 
   const num=(id,def=0)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:def};
   const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
@@ -265,10 +385,15 @@ button:disabled{opacity:.45}
     return [h,m].map(x=>String(x).padStart(2,'0')).join(':');
   };
 
-  function payBreakdown(hours, rate, ot1, ot2){
-    const regH=Math.min(hours,ot1);
-    const otH=Math.max(0,Math.min(hours,ot2)-ot1);
-    const dtH=Math.max(0,hours-ot2);
+  function payBreakdown(hours, rate, ot1, ot2, use15=true, use2=true){
+    const firstBand=Math.min(hours,ot1);
+    const middleBand=Math.max(0,Math.min(hours,ot2)-ot1);
+    const lateBand=Math.max(0,hours-ot2);
+
+    const regH=firstBand + (use15?0:middleBand) + ((!use15&&!use2)?lateBand:0);
+    const otH=(use15?middleBand:0) + ((use15&&!use2)?lateBand:0);
+    const dtH=use2?lateBand:0;
+
     const reg=regH*rate;
     const ot=otH*rate*1.5;
     const dt=dtH*rate*2;
@@ -301,9 +426,12 @@ button:disabled{opacity:.45}
     const rate=Math.max(0,num('baseRate',80));
     const ot1=Math.max(0,num('ot1Hours',8));
     const ot2=Math.max(ot1,num('ot2Hours',12));
-    const b=payBreakdown(hours,rate,ot1,ot2);
+    const use15=$('ot15Toggle').checked;
+    const use2=$('ot2Toggle').checked;
+    const b=payBreakdown(hours,rate,ot1,ot2,use15,use2);
     let current=rate;
-    if(hours>=ot2) current=rate*2; else if(hours>=ot1) current=rate*1.5;
+    if(hours>=ot2 && use2) current=rate*2;
+    else if(hours>=ot1 && use15) current=rate*1.5;
 
     const taxesOn=$('taxToggle').checked;
     const taxPct=taxesOn ? Math.max(0,num('fedPct')+num('caPct')+num('ssPct')+num('medPct'))/100 : 0;
@@ -385,14 +513,25 @@ button:disabled{opacity:.45}
     const today=page==='today';
     const log=page==='log';
     const archive=page==='archive';
+    const payments=page==='payments';
+    const reimbursements=page==='reimbursements';
+
     $('todayPage').classList.toggle('active',today);
     $('logPage').classList.toggle('active',log);
     $('archivePage').classList.toggle('active',archive);
+    $('paymentsPage').classList.toggle('active',payments);
+    $('reimbursementsPage').classList.toggle('active',reimbursements);
+
     $('todayTab').classList.toggle('active',today);
     $('logTab').classList.toggle('active',log);
     $('archiveTab').classList.toggle('active',archive);
+    $('paymentsTab').classList.toggle('active',payments);
+    $('reimbursementsTab').classList.toggle('active',reimbursements);
+
     if(log) renderLog();
     if(archive) renderArchive();
+    if(payments) renderPayments();
+    if(reimbursements) renderReimbursements();
   }
 
   function loadLog(){
@@ -478,7 +617,7 @@ button:disabled{opacity:.45}
 
     let gross=0,hours=0,otHours=0,dtHours=0,premium=0;
     days.forEach(e=>{
-      const b=payBreakdown(e.hours,rate,ot1,ot2);
+      const b=payBreakdown(e.hours,rate,ot1,ot2,$('ot15Toggle').checked,$('ot2Toggle').checked);
       gross+=b.gross; hours+=e.hours; otHours+=b.otH; dtHours+=b.dtH; premium+=b.premium;
     });
 
@@ -550,6 +689,211 @@ button:disabled{opacity:.45}
     });
   }
 
+  function loadSimpleStore(key){
+    try{
+      const raw=localStorage.getItem(key);
+      const arr=raw?JSON.parse(raw):[];
+      return Array.isArray(arr)?arr:[];
+    }catch(e){return [];}
+  }
+
+  function saveSimpleStore(key,entries){
+    try{
+      localStorage.setItem(key,JSON.stringify(entries));
+      return true;
+    }catch(e){
+      alert('Storage is full. Try deleting older receipt images or using a smaller receipt file.');
+      return false;
+    }
+  }
+
+  function fileToDataURL(file){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error('Could not read receipt'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function processReceipt(input){
+    const file=input && input.files && input.files[0];
+    if(!file) return null;
+
+    if(file.type.startsWith('image/')){
+      const raw=await fileToDataURL(file);
+      const img=new Image();
+      await new Promise((resolve,reject)=>{
+        img.onload=resolve;
+        img.onerror=()=>reject(new Error('Could not read receipt image'));
+        img.src=raw;
+      });
+      const max=1200;
+      const scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(img.width*scale));
+      canvas.height=Math.max(1,Math.round(img.height*scale));
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      return {name:file.name||'receipt.jpg',type:'image/jpeg',data:canvas.toDataURL('image/jpeg',0.72)};
+    }
+
+    if(file.type==='application/pdf'){
+      if(file.size>1200000) throw new Error('PDF receipt is too large. Use a PDF under about 1.2 MB.');
+      return {name:file.name||'receipt.pdf',type:file.type,data:await fileToDataURL(file)};
+    }
+
+    throw new Error('Use a receipt photo or PDF.');
+  }
+
+  function receiptLink(receipt){
+    if(!receipt || !receipt.data) return '';
+    return `<a href="${receipt.data}" target="_blank" rel="noopener" style="color:var(--accent);font-size:13px;font-weight:700">View receipt</a>`;
+  }
+
+  async function addIncomingPayment(){
+    const date=$('paymentDate').value;
+    const amount=Math.max(0,num('paymentAmount',0));
+    if(!date || amount<=0){alert('Enter a date and payment amount.');return;}
+
+    let receipt=null;
+    try{receipt=await processReceipt($('paymentReceipt'));}catch(e){alert(e.message);return;}
+
+    const isReimbursement=$('paymentIsReimbursement').checked;
+    const entry={
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      date,
+      amount,
+      method:$('paymentMethod').value,
+      source:$('paymentSource').value.trim(),
+      note:$('paymentNote').value.trim(),
+      receipt,
+      category:isReimbursement?'Other':'Income'
+    };
+
+    const key=isReimbursement?REIMBURSEMENTS_KEY:PAYMENTS_KEY;
+    const entries=loadSimpleStore(key);
+    entries.push(entry);
+    if(!saveSimpleStore(key,entries)) return;
+
+    $('paymentAmount').value='0';
+    $('paymentSource').value='';
+    $('paymentNote').value='';
+    $('paymentReceipt').value='';
+    $('paymentIsReimbursement').checked=false;
+
+    renderPayments();
+    renderReimbursements();
+    if(isReimbursement) switchPage('reimbursements');
+  }
+
+  async function addReimbursement(){
+    const date=$('reimbursementDate').value;
+    const amount=Math.max(0,num('reimbursementAmount',0));
+    if(!date || amount<=0){alert('Enter a date and reimbursement amount.');return;}
+
+    let receipt=null;
+    try{receipt=await processReceipt($('reimbursementReceipt'));}catch(e){alert(e.message);return;}
+
+    const entry={
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      date,
+      amount,
+      method:'Reimbursement',
+      source:$('reimbursementSource').value.trim(),
+      note:$('reimbursementNote').value.trim(),
+      receipt,
+      category:$('reimbursementCategory').value
+    };
+
+    const entries=loadSimpleStore(REIMBURSEMENTS_KEY);
+    entries.push(entry);
+    if(!saveSimpleStore(REIMBURSEMENTS_KEY,entries)) return;
+
+    $('reimbursementAmount').value='0';
+    $('reimbursementSource').value='';
+    $('reimbursementNote').value='';
+    $('reimbursementReceipt').value='';
+    renderReimbursements();
+  }
+
+  function deleteStoredEntry(key,id){
+    const entries=loadSimpleStore(key).filter(e=>e.id!==id);
+    saveSimpleStore(key,entries);
+    renderPayments();
+    renderReimbursements();
+  }
+
+  function renderPayments(){
+    const entries=loadSimpleStore(PAYMENTS_KEY).sort((a,b)=>a.date.localeCompare(b.date));
+    const list=$('paymentsList');
+    list.innerHTML='';
+    const total=entries.reduce((s,e)=>s+(Number(e.amount)||0),0);
+    $('paymentsTotal').textContent=money(total);
+    $('paymentsCount').textContent=String(entries.length);
+
+    if(entries.length===0){
+      list.innerHTML='<div class="empty">No income payments logged yet.</div>';
+      return;
+    }
+
+    entries.slice().reverse().forEach(e=>{
+      const item=document.createElement('div');
+      item.className='log-item';
+      item.innerHTML=`
+        <div class="log-top">
+          <div>
+            <div class="log-date">${prettyDate(e.date)}</div>
+            <div class="log-time">${e.method}${e.source?` · ${e.source}`:''}</div>
+          </div>
+          <div class="log-pay">${money(e.amount)}</div>
+        </div>
+        ${e.note?`<div class="note">${e.note}</div>`:''}
+        <div class="log-actions" style="justify-content:space-between;align-items:center">
+          <div>${receiptLink(e.receipt)}</div>
+          <button type="button" class="danger">Delete</button>
+        </div>
+      `;
+      item.querySelector('button').addEventListener('click',()=>deleteStoredEntry(PAYMENTS_KEY,e.id));
+      list.appendChild(item);
+    });
+  }
+
+  function renderReimbursements(){
+    const entries=loadSimpleStore(REIMBURSEMENTS_KEY).sort((a,b)=>a.date.localeCompare(b.date));
+    const list=$('reimbursementsList');
+    list.innerHTML='';
+    const total=entries.reduce((s,e)=>s+(Number(e.amount)||0),0);
+    $('reimbursementsTotal').textContent=money(total);
+    $('reimbursementsCount').textContent=String(entries.length);
+
+    if(entries.length===0){
+      list.innerHTML='<div class="empty">No reimbursements logged yet.</div>';
+      return;
+    }
+
+    entries.slice().reverse().forEach(e=>{
+      const item=document.createElement('div');
+      item.className='log-item';
+      item.innerHTML=`
+        <div class="log-top">
+          <div>
+            <div class="log-date">${prettyDate(e.date)}</div>
+            <div class="log-time">${e.category||'Reimbursement'}${e.source?` · ${e.source}`:''}</div>
+          </div>
+          <div class="log-pay">${money(e.amount)}</div>
+        </div>
+        ${e.note?`<div class="note">${e.note}</div>`:''}
+        <div class="log-actions" style="justify-content:space-between;align-items:center">
+          <div>${receiptLink(e.receipt)}</div>
+          <button type="button" class="danger">Delete</button>
+        </div>
+      `;
+      item.querySelector('button').addEventListener('click',()=>deleteStoredEntry(REIMBURSEMENTS_KEY,e.id));
+      list.appendChild(item);
+    });
+  }
+
   function renderLog(){
     const entries=loadLog();
     const rate=Math.max(0,num('baseRate',80));
@@ -564,7 +908,7 @@ button:disabled{opacity:.45}
       list.innerHTML='<div class="empty">No saved work days yet.</div>';
     } else {
       entries.slice().reverse().forEach(e=>{
-        const b=payBreakdown(e.hours,rate,ot1,ot2);
+        const b=payBreakdown(e.hours,rate,ot1,ot2,$('ot15Toggle').checked,$('ot2Toggle').checked);
         totalGross+=b.gross; totalHours+=e.hours; totalOt+=b.otH; totalDt+=b.dtH; totalPremium+=b.premium;
 
         const item=document.createElement('div');
@@ -600,6 +944,8 @@ button:disabled{opacity:.45}
   $('todayTab').addEventListener('click',()=>switchPage('today'));
   $('logTab').addEventListener('click',()=>switchPage('log'));
   $('archiveTab').addEventListener('click',()=>switchPage('archive'));
+  $('paymentsTab').addEventListener('click',()=>switchPage('payments'));
+  $('reimbursementsTab').addEventListener('click',()=>switchPage('reimbursements'));
   $('startBtn').addEventListener('click',startShift);
 
   $('alreadyStartedToggle').addEventListener('change',()=>{
@@ -644,11 +990,19 @@ button:disabled{opacity:.45}
     });
   });
 
+  $('ot15Toggle').addEventListener('change',()=>{calc();renderLog();});
+  $('ot2Toggle').addEventListener('change',()=>{calc();renderLog();});
+
   $('addLogBtn').addEventListener('click',addLogEntry);
   $('archiveWeekBtn').addEventListener('click',archiveCurrentWeek);
+  $('addPaymentBtn').addEventListener('click',addIncomingPayment);
+  $('addReimbursementBtn').addEventListener('click',addReimbursement);
 
   const today=new Date();
-  $('logDate').value=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+  const todayIso=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+  $('logDate').value=todayIso;
+  $('paymentDate').value=todayIso;
+  $('reimbursementDate').value=todayIso;
 
   setCatchupMode('clock');
   $('catchupPanel').classList.add('hidden');
@@ -657,6 +1011,8 @@ button:disabled{opacity:.45}
   calc();
   renderLog();
   renderArchive();
+  renderPayments();
+  renderReimbursements();
 })();
 </script>
 </body>
