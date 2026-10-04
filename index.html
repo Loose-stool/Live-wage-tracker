@@ -94,6 +94,16 @@ button:disabled{opacity:.45}
 .receipt-meta .receipt-links a{color:var(--accent);font-size:12px;font-weight:750;text-decoration:none}
 @media(max-width:460px){.receipt-tools,.receipt-gallery{grid-template-columns:1fr}}
 
+
+.profile-badge{display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:8px 12px;font-size:13px;color:var(--muted);margin:0 auto 10px}
+.history-list{display:grid;gap:10px}
+.history-item{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px}
+.history-title{font-weight:800;font-size:17px}
+.history-sub{font-size:13px;color:var(--muted);margin-top:3px}
+.history-pay{font-size:22px;font-weight:800;text-align:right}
+.profile-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.save-note{font-size:12px;color:var(--muted);line-height:1.4;margin-top:8px}
+
 </style>
 </head>
 <body>
@@ -106,9 +116,11 @@ button:disabled{opacity:.45}
     <button id="archiveTab" type="button">Year Archive</button>
     <button id="paymentsTab" type="button">Payments</button>
     <button id="reimbursementsTab" type="button">Reimbursements</button>
+    <button id="profileTab" type="button">Profile</button>
   </div>
 
   <section id="todayPage" class="page active">
+    <div style="text-align:center"><div id="profileBadge" class="profile-badge">Local profile: Not set</div></div>
     <div class="hero">
       <div class="status"><span id="dot" class="dot"></span><span id="statusText">Ready</span></div>
       <div class="kicker" style="margin-top:18px">Gross earnings</div>
@@ -127,6 +139,7 @@ button:disabled{opacity:.45}
       <button id="startBtn">Start Shift</button>
       <button id="breakBtn" class="break" disabled>Start Break</button>
       <button id="pauseBtn" class="secondary" disabled>Pause</button>
+      <button id="finishBtn" class="secondary" disabled>Finish Shift</button>
       <button id="resetBtn" class="danger">Reset</button>
     </div>
 
@@ -385,6 +398,31 @@ button:disabled{opacity:.45}
 
     <div class="note">Receipt photos are compressed before being stored. Auto-scan works best on clear receipt photos. PDFs can still be stored and exported, but automatic total detection is currently for images.</div>
   </section>
+  <section id="profilePage" class="page">
+    <div class="section-title" style="margin-top:18px">Local profile</div>
+    <div class="quick-card">
+      <div class="quick-title">Your device profile</div>
+      <div class="quick-copy">This keeps your name, settings, active shift, and saved history on this device. No cloud account is required.</div>
+      <div class="field"><label>Profile name</label><input id="profileName" type="text" placeholder="Your name"></div>
+      <div class="profile-actions" style="margin-top:10px">
+        <button id="saveProfileBtn" type="button">Save Profile</button>
+        <button id="exportDataBtn" class="secondary" type="button">Export Backup</button>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label>Restore from backup</label>
+        <input id="importDataInput" type="file" accept="application/json">
+      </div>
+      <div class="save-note">Everything stays in this browser unless you export a backup. Clearing Safari website data can erase local history.</div>
+    </div>
+
+    <div class="section-title">Saved shift history</div>
+    <div class="grid">
+      <div class="card"><h3>Saved shifts</h3><div id="historyCount" class="big-value">0</div></div>
+      <div class="card"><h3>Saved gross</h3><div id="historyGross" class="big-value">$0.00</div></div>
+    </div>
+    <div id="shiftHistoryList" class="history-list" style="margin-top:10px"></div>
+  </section>
+
 </div>
 
 <script>
@@ -398,6 +436,10 @@ button:disabled{opacity:.45}
   const ARCHIVE_KEY='wageAgainstMachineArchiveV1';
   const PAYMENTS_KEY='wageAgainstMachinePaymentsV1';
   const REIMBURSEMENTS_KEY='wageAgainstMachineReimbursementsV1';
+  const PROFILE_KEY='wageAgainstMachineProfileV1';
+  const SHIFT_HISTORY_KEY='wageAgainstMachineShiftHistoryV1';
+  const ACTIVE_SHIFT_KEY='wageAgainstMachineActiveShiftV1';
+  const SETTINGS_KEY='wageAgainstMachineSettingsV1';
 
   const num=(id,def=0)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:def};
   const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
@@ -490,6 +532,7 @@ button:disabled{opacity:.45}
     $('breakBtn').textContent=onBreak?'Resume Work':'Start Break';
     $('pauseBtn').disabled=!running||onBreak;
     $('pauseBtn').textContent=paused?'Resume':'Pause';
+    $('finishBtn').disabled=!(running||paused||onBreak);
   }
 
   function setCatchupMode(mode){
@@ -531,6 +574,7 @@ button:disabled{opacity:.45}
     }
 
     running=true;
+    persistActiveShift();
     startTicker();
     setStatus();
     calc();
@@ -542,23 +586,210 @@ button:disabled{opacity:.45}
     const archive=page==='archive';
     const payments=page==='payments';
     const reimbursements=page==='reimbursements';
+    const profile=page==='profile';
 
     $('todayPage').classList.toggle('active',today);
     $('logPage').classList.toggle('active',log);
     $('archivePage').classList.toggle('active',archive);
     $('paymentsPage').classList.toggle('active',payments);
     $('reimbursementsPage').classList.toggle('active',reimbursements);
+    $('profilePage').classList.toggle('active',profile);
 
     $('todayTab').classList.toggle('active',today);
     $('logTab').classList.toggle('active',log);
     $('archiveTab').classList.toggle('active',archive);
     $('paymentsTab').classList.toggle('active',payments);
     $('reimbursementsTab').classList.toggle('active',reimbursements);
+    $('profileTab').classList.toggle('active',profile);
 
     if(log) renderLog();
     if(archive) renderArchive();
     if(payments) renderPayments();
     if(reimbursements) renderReimbursements();
+    if(profile) renderShiftHistory();
+  }
+
+  function loadProfile(){
+    try{
+      const raw=localStorage.getItem(PROFILE_KEY);
+      return raw?JSON.parse(raw):{name:''};
+    }catch(e){return {name:''};}
+  }
+
+  function saveProfile(){
+    const name=$('profileName').value.trim();
+    try{localStorage.setItem(PROFILE_KEY,JSON.stringify({name}));}catch(e){}
+    renderProfile();
+  }
+
+  function renderProfile(){
+    const profile=loadProfile();
+    $('profileName').value=profile.name||'';
+    $('profileBadge').textContent=profile.name ? 'Local profile: '+profile.name : 'Local profile: Not set';
+  }
+
+  function loadShiftHistory(){
+    try{
+      const raw=localStorage.getItem(SHIFT_HISTORY_KEY);
+      const arr=raw?JSON.parse(raw):[];
+      return Array.isArray(arr)?arr:[];
+    }catch(e){return [];}
+  }
+
+  function saveShiftHistory(entries){
+    try{localStorage.setItem(SHIFT_HISTORY_KEY,JSON.stringify(entries));}catch(e){}
+  }
+
+  function saveSettings(){
+    const settings={
+      baseRate:num('baseRate',80),
+      manualBreak:num('manualBreak',0),
+      ot1Hours:num('ot1Hours',8),
+      ot2Hours:num('ot2Hours',12),
+      ot15:$('ot15Toggle').checked,
+      ot2:$('ot2Toggle').checked,
+      taxes:$('taxToggle').checked,
+      fed:num('fedPct',12),
+      ca:num('caPct',4),
+      ss:num('ssPct',6.2),
+      med:num('medPct',1.45)
+    };
+    try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings));}catch(e){}
+  }
+
+  function loadSettings(){
+    try{
+      const raw=localStorage.getItem(SETTINGS_KEY);
+      if(!raw) return;
+      const s=JSON.parse(raw);
+      if(s.baseRate!=null) $('baseRate').value=s.baseRate;
+      if(s.manualBreak!=null) $('manualBreak').value=s.manualBreak;
+      if(s.ot1Hours!=null) $('ot1Hours').value=s.ot1Hours;
+      if(s.ot2Hours!=null) $('ot2Hours').value=s.ot2Hours;
+      if(s.ot15!=null) $('ot15Toggle').checked=!!s.ot15;
+      if(s.ot2!=null) $('ot2Toggle').checked=!!s.ot2;
+      if(s.taxes!=null) $('taxToggle').checked=!!s.taxes;
+      if(s.fed!=null) $('fedPct').value=s.fed;
+      if(s.ca!=null) $('caPct').value=s.ca;
+      if(s.ss!=null) $('ssPct').value=s.ss;
+      if(s.med!=null) $('medPct').value=s.med;
+      $('taxPanel').classList.toggle('hidden',!$('taxToggle').checked);
+    }catch(e){}
+  }
+
+  function persistActiveShift(){
+    try{
+      const state={running,onBreak,paused,shiftStartMs,pauseStartMs,breakStartMs,pausedAccumMs,breakAccumMs,manualBreakMs,elapsedOffsetMs,catchupMode};
+      if(running || onBreak || paused) localStorage.setItem(ACTIVE_SHIFT_KEY,JSON.stringify(state));
+      else localStorage.removeItem(ACTIVE_SHIFT_KEY);
+    }catch(e){}
+  }
+
+  function restoreActiveShift(){
+    try{
+      const raw=localStorage.getItem(ACTIVE_SHIFT_KEY);
+      if(!raw) return;
+      const s=JSON.parse(raw);
+      running=!!s.running; onBreak=!!s.onBreak; paused=!!s.paused;
+      shiftStartMs=s.shiftStartMs??null; pauseStartMs=s.pauseStartMs??null; breakStartMs=s.breakStartMs??null;
+      pausedAccumMs=s.pausedAccumMs||0; breakAccumMs=s.breakAccumMs||0; manualBreakMs=s.manualBreakMs||0;
+      elapsedOffsetMs=s.elapsedOffsetMs||0; catchupMode=s.catchupMode||'clock';
+      if(running || onBreak || paused) startTicker();
+      setStatus(); calc();
+    }catch(e){}
+  }
+
+  function shiftSnapshot(){
+    const paidMs=activeElapsedMs();
+    const hours=paidMs/3600000;
+    const rate=Math.max(0,num('baseRate',80));
+    const ot1=Math.max(0,num('ot1Hours',8));
+    const ot2=Math.max(ot1,num('ot2Hours',12));
+    const b=payBreakdown(hours,rate,ot1,ot2,$('ot15Toggle').checked,$('ot2Toggle').checked);
+    const breakMs=breakAccumMs+manualBreakMs+(onBreak&&breakStartMs?Date.now()-breakStartMs:0);
+    return {paidMs,hours,breakMs,rate,b};
+  }
+
+  function finishShift(){
+    if(!running && !paused && !onBreak) return;
+    const snap=shiftSnapshot();
+    const now=new Date();
+    const saveIt=confirm('Save this shift to your local history?\n\n'+hhmmss(snap.paidMs)+' worked · '+money(snap.b.gross)+' gross');
+    if(saveIt){
+      const profile=loadProfile();
+      const label=now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' · '+hhmmss(snap.paidMs);
+      const entry={
+        id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+        label,date:now.toISOString(),profileName:profile.name||'',
+        paidMs:snap.paidMs,hours:snap.hours,breakMs:snap.breakMs,gross:snap.b.gross,
+        reg:snap.b.reg,ot:snap.b.ot,dt:snap.b.dt,regH:snap.b.regH,otH:snap.b.otH,dtH:snap.b.dtH,rate:snap.rate
+      };
+      const history=loadShiftHistory();
+      history.push(entry);
+      saveShiftHistory(history);
+    }
+    resetState();
+    persistActiveShift();
+    setStatus(); calc(); renderShiftHistory();
+  }
+
+  function deleteShiftHistory(id){
+    saveShiftHistory(loadShiftHistory().filter(e=>e.id!==id));
+    renderShiftHistory();
+  }
+
+  function renderShiftHistory(){
+    const entries=loadShiftHistory().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const list=$('shiftHistoryList');
+    list.innerHTML='';
+    $('historyCount').textContent=String(entries.length);
+    $('historyGross').textContent=money(entries.reduce((s,e)=>s+(Number(e.gross)||0),0));
+
+    if(entries.length===0){
+      list.innerHTML='<div class="empty">No saved shifts yet. Finish a shift and choose Save to preserve it here.</div>';
+      return;
+    }
+
+    entries.slice().reverse().forEach(e=>{
+      const item=document.createElement('div');
+      item.className='history-item';
+      item.innerHTML=`
+        <div class="log-top">
+          <div>
+            <div class="history-title">${e.label||'Saved shift'}</div>
+            <div class="history-sub">${formatHours(e.hours||0)} hours · ${formatHours(e.otH||0)} at 1.5× · ${formatHours(e.dtH||0)} at 2×</div>
+          </div>
+          <div class="history-pay">${money(e.gross||0)}</div>
+        </div>
+        <div class="log-actions"><button type="button" class="danger">Delete</button></div>`;
+      item.querySelector('button').addEventListener('click',()=>deleteShiftHistory(e.id));
+      list.appendChild(item);
+    });
+  }
+
+  function buildBackup(){
+    const keys=[PROFILE_KEY,SHIFT_HISTORY_KEY,ACTIVE_SHIFT_KEY,SETTINGS_KEY,LOG_KEY,ARCHIVE_KEY,PAYMENTS_KEY,REIMBURSEMENTS_KEY];
+    const data={app:'Wage Against the Machine',version:1,exportedAt:new Date().toISOString(),storage:{}};
+    keys.forEach(k=>{data.storage[k]=localStorage.getItem(k);});
+    return data;
+  }
+
+  function exportBackup(){
+    downloadBlob(new Blob([JSON.stringify(buildBackup(),null,2)],{type:'application/json'}),'wage-against-the-machine-backup.json');
+  }
+
+  async function importBackup(file){
+    if(!file) return;
+    try{
+      const data=JSON.parse(await file.text());
+      if(!data || !data.storage) throw new Error('Invalid backup');
+      Object.entries(data.storage).forEach(([k,v])=>{
+        if(v===null || v===undefined) localStorage.removeItem(k);
+        else localStorage.setItem(k,v);
+      });
+      alert('Backup restored.');
+      location.reload();
+    }catch(e){alert('Could not restore this backup file.');}
   }
 
   function loadLog(){
@@ -1173,6 +1404,7 @@ button:disabled{opacity:.45}
   $('archiveTab').addEventListener('click',()=>switchPage('archive'));
   $('paymentsTab').addEventListener('click',()=>switchPage('payments'));
   $('reimbursementsTab').addEventListener('click',()=>switchPage('reimbursements'));
+  $('profileTab').addEventListener('click',()=>switchPage('profile'));
   $('startBtn').addEventListener('click',startShift);
 
   $('alreadyStartedToggle').addEventListener('change',()=>{
@@ -1185,12 +1417,14 @@ button:disabled{opacity:.45}
   $('taxToggle').addEventListener('change',()=>{
     $('taxPanel').classList.toggle('hidden',!$('taxToggle').checked);
     calc();
+    saveSettings();
   });
 
   $('breakBtn').addEventListener('click',()=>{
     if(!running||paused)return;
     if(!onBreak){onBreak=true;breakStartMs=Date.now();}
     else{breakAccumMs+=Date.now()-breakStartMs;breakStartMs=null;onBreak=false;}
+    persistActiveShift();
     setStatus();calc();
   });
 
@@ -1198,14 +1432,18 @@ button:disabled{opacity:.45}
     if(!running||onBreak)return;
     if(!paused){paused=true;pauseStartMs=Date.now();}
     else{pausedAccumMs+=Date.now()-pauseStartMs;pauseStartMs=null;paused=false;}
+    persistActiveShift();
     setStatus();calc();
   });
+
+  $('finishBtn').addEventListener('click',finishShift);
 
   $('resetBtn').addEventListener('click',()=>{
     resetState();
     $('manualHours').value='0';
     $('manualMinutes').value='0';
     $('manualBreak').value='0';
+    persistActiveShift();
     setStatus();calc();
   });
 
@@ -1214,16 +1452,20 @@ button:disabled{opacity:.45}
       if(!running) manualBreakMs=Math.max(0,num('manualBreak',0))*60000;
       calc();
       renderLog();
+      saveSettings();
     });
   });
 
-  $('ot15Toggle').addEventListener('change',()=>{calc();renderLog();});
-  $('ot2Toggle').addEventListener('change',()=>{calc();renderLog();});
+  $('ot15Toggle').addEventListener('change',()=>{calc();renderLog();saveSettings();});
+  $('ot2Toggle').addEventListener('change',()=>{calc();renderLog();saveSettings();});
 
   $('addLogBtn').addEventListener('click',addLogEntry);
   $('archiveWeekBtn').addEventListener('click',archiveCurrentWeek);
   $('addPaymentBtn').addEventListener('click',addIncomingPayment);
   $('addReimbursementBtn').addEventListener('click',addReimbursement);
+  $('saveProfileBtn').addEventListener('click',saveProfile);
+  $('exportDataBtn').addEventListener('click',exportBackup);
+  $('importDataInput').addEventListener('change',e=>importBackup(e.target.files&&e.target.files[0]));
   $('scanReceiptBtn').addEventListener('click',scanReimbursementReceipt);
   $('clearReceiptBtn').addEventListener('click',clearReimbursementReceipt);
   $('exportReceiptsBtn').addEventListener('click',exportReceiptPackage);
@@ -1235,6 +1477,9 @@ button:disabled{opacity:.45}
   $('paymentDate').value=todayIso;
   $('reimbursementDate').value=todayIso;
 
+  loadSettings();
+  renderProfile();
+  renderShiftHistory();
   setCatchupMode('clock');
   $('catchupPanel').classList.add('hidden');
   $('taxPanel').classList.remove('hidden');
@@ -1244,6 +1489,7 @@ button:disabled{opacity:.45}
   renderArchive();
   renderPayments();
   renderReimbursements();
+  restoreActiveShift();
 })();
 </script>
 </body>
